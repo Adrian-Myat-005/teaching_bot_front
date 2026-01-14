@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>English Master</title>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                background-color: var(--tg-theme-bg-color, #fff);
+                color: var(--tg-theme-text-color, #000);
+                padding: 20px;
+            }
+            .card {
+                background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+                padding: 15px;
+                border-radius: 12px;
+                margin-bottom: 15px;
+            }
+            button {
+                background-color: var(--tg-theme-button-color, #3390ec);
+                color: var(--tg-theme-button-text-color, #fff);
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                width: 100%;
+                margin-top: 10px;
+                cursor: pointer;
+            }
+            h2 {
+                margin-top: 0;
+            }
+            input {
+                width: 100%;
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #ccc;
+                box-sizing: border-box;
+                margin-bottom: 10px;
+            }
+            #chat-response {
+                font-style: italic;
+                color: #555;
+                margin-top: 10px;
+            }
+            .hidden {
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="loading">Loading your profile...</div>
+
+        <div id="dashboard" class="hidden">
+            <h1>Hi, <span id="username">Student</span>! 👋</h1>
+
+            <div class="card">
+                <h2 id="lesson-title">Loading Lesson...</h2>
+                <video id="video-player" width="100%" controls>
+                    <source src="" type="video/mp4" />
+                </video>
+                <p id="lesson-text"></p>
+            </div>
+
+            <div class="card">
+                <h2>🤖 AI Tutor</h2>
+                <p>Ask me anything about this lesson:</p>
+                <input
+                    type="text"
+                    id="user-question"
+                    placeholder="E.g., What does this mean?"
+                />
+                <button onclick="askAI()">Ask</button>
+                <p id="chat-response"></p>
+            </div>
+        </div>
+
+        <script>
+            const API_URL = "https://eng-teaching-bot.onrender.com/"; // PASTE YOUR RENDER URL HERE (No trailing slash)
+            const tg = window.Telegram.WebApp;
+            tg.expand(); // Full screen
+
+            let currentUser = {};
+            let currentLessonText = "";
+
+            // 1. INITIALIZE & LOGIN
+            async function init() {
+                const user = tg.initDataUnsafe.user;
+                if (!user) {
+                    document.getElementById("loading").innerText =
+                        "Please open this from Telegram.";
+                    return;
+                }
+
+                // Call Backend to Login
+                try {
+                    const res = await fetch(`${API_URL}/login`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            user_id: user.id,
+                            first_name: user.first_name,
+                        }),
+                    });
+                    const data = await res.json();
+
+                    currentUser = user;
+                    document.getElementById("username").innerText =
+                        user.first_name;
+                    loadLesson(data.data.current_lesson);
+
+                    document.getElementById("loading").classList.add("hidden");
+                    document
+                        .getElementById("dashboard")
+                        .classList.remove("hidden");
+                } catch (e) {
+                    document.getElementById("loading").innerText =
+                        "Error connecting to server.";
+                }
+            }
+
+            // 2. LOAD LESSON CONTENT
+            async function loadLesson(id) {
+                const res = await fetch(`${API_URL}/lesson/${id}`);
+                const data = await res.json();
+
+                document.getElementById("lesson-title").innerText = data.title;
+                document.getElementById("lesson-text").innerText = data.content;
+                document.getElementById("video-player").src = data.video_url;
+                currentLessonText = data.content;
+            }
+
+            // 3. ASK AI
+            async function askAI() {
+                const question = document.getElementById("user-question").value;
+                const btn = document.querySelector("button");
+                const respBox = document.getElementById("chat-response");
+
+                btn.innerText = "Thinking...";
+                respBox.innerText = "";
+
+                const res = await fetch(`${API_URL}/ask-ai`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        message: question,
+                        context: currentLessonText,
+                    }),
+                });
+                const data = await res.json();
+
+                respBox.innerText = data.reply;
+                btn.innerText = "Ask";
+            }
+
+            init();
+        </script>
+    </body>
+</html>
